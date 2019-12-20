@@ -121,15 +121,30 @@ func (g *gitlabPlugin) FindByTagName(name string) ([]*model.Ticket, error) {
 	options := &gitlab.ListProjectIssuesOptions{
 		State:  gitlab.String("all"),
 		Labels: []string{name},
+		ListOptions: gitlab.ListOptions{
+			Page: 1,
+		},
 	}
 
-	issues, _, err := g.api().Issues.ListProjectIssues(g.reponame, options)
+	allIssues := []*gitlab.Issue{}
 
-	if err != nil {
-		return nil, errors.Wrap(err, "error during FindOpen")
+	for {
+		issues, resp, err := g.api().Issues.ListProjectIssues(g.reponame, options)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "error during FindOpen")
+		}
+
+		if resp.CurrentPage >= resp.TotalPages {
+			break
+		}
+
+		options.Page = resp.NextPage
+
+		allIssues = append(allIssues, issues...)
 	}
 
-	return toTickets(issues), nil
+	return toTickets(allIssues), nil
 }
 
 func (g *gitlabPlugin) LinkFor(t *model.Ticket) string {
